@@ -17,9 +17,9 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:8|confirmed',
             // Role opsional, jika tidak diisi default 'user' di database
-            'role' => 'in:admin,user',
+            // 'role' => 'in:admin,user',
         ]);
 
         // Buat User baru
@@ -27,7 +27,7 @@ class AuthController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role' => $validated['role'] ?? 'user',
+            // 'role' => $validated['role'] ?? 'user',
         ]);
 
         // Buat Token Sanctum
