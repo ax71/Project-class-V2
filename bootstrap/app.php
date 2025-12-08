@@ -15,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Tambahkan middleware CORS
         $middleware->append(\App\Http\Middleware\Cors::class);
 
+        $middleware->validateCsrfTokens(except: [
+            'api/*', // Abaikan pengecekan CSRF untuk semua route API
+            'login', // Opsional, jaga-jaga
+            'register'
+        ]);
+
         // Sanctum (opsional)
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
