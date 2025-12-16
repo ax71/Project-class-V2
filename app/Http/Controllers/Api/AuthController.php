@@ -3,85 +3,63 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Resources\UserResource;
+use App\Services\AuthService;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    // 1. REGISTER
-    public function register(Request $request)
+    use ApiResponse;
+
+    protected AuthService $authService;
+
+    public function __construct(AuthService $authService)
     {
-        // Validasi input
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            // Role opsional, jika tidak diisi default 'user' di database
-            // 'role' => 'in:admin,user',
-        ]);
-
-        // Buat User baru
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            // 'role' => $validated['role'] ?? 'user',
-        ]);
-
-        // Buat Token Sanctum
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        // Return Response JSON
-        return response()->json([
-            'message' => 'Register success',
-            'data' => $user,
-            'access_token' => $token,
-            'token_type' => 'Bearer'
-        ], 201);
+        $this->authService = $authService;
     }
 
-    // 2. LOGIN
-    public function login(Request $request)
+    /**
+     * Register a new user.
+     */
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
+        $result = $this->authService->register($request->validated());
 
-        $user = User::where('email', $request->email)->first();
-
-        // Cek apakah user ada DAN password benar
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            // Jika salah, lempar error validasi
-            throw ValidationException::withMessages([
-                'email' => ['Kredensial yang diberikan salah.'],
-            ]);
-        }
-
-        // Hapus token lama jika ingin single device login (opsional)
-        $user->tokens()->delete();
-
-        // Buat Token Baru
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'message' => 'Login success',
-            'data' => $user,
-            'access_token' => $token,
-            'token_type' => 'Bearer'
-        ]);
+        return $this->successResponse([
+            'user' => new UserResource($result['user']),
+            'access_token' => $result['token'],
+            'token_type' => 'Bearer',
+        ], 'Registration successful', 201);
     }
 
-    // 3. LOGOUT
-    public function logout(Request $request)
+    /**
+     * Authenticate user and return token.
+     */
+    public function login(LoginRequest $request): JsonResponse
     {
-        // Hapus token yang sedang digunakan saat ini (Current Access Token)
-        $request->user()->currentAccessToken()->delete();
+        $result = $this->authService->login(
+            $request->input('email'),
+            $request->input('password')
+        );
 
-        return response()->json([
-            'message' => 'Logout success'
-        ]);
+        return $this->successResponse([
+            'user' => new UserResource($result['user']),
+            'access_token' => $result['token'],
+            'token_type' => 'Bearer',
+        ], 'Login successful');
+    }
+
+    /**
+     * Logout user by revoking current token.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        $this->authService->logout($request->user());
+
+        return $this->successResponse(null, 'Logout successful');
     }
 }

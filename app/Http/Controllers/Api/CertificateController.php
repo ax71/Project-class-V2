@@ -5,59 +5,62 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Certificate;
 use App\Models\Course;
+use App\Models\Material; 
+use App\Models\Quiz;     
 use App\Models\Progress;
-use App\Models\QuizResult;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class CertificateController extends Controller
 {
-    // 1. KLAIM SERTIFIKAT (Generate Baru)
-    public function store(Request $request)
+    public function generate(Request $request)
     {
         $request->validate(['course_id' => 'required|exists:courses,id']);
 
         $user = Auth::user();
         $courseId = $request->course_id;
 
-        // CEK 1: Apakah sudah pernah klaim? Jangan double.
+        // 1. Cek apakah sertifikat sudah pernah diklaim?
         $existingCert = Certificate::where('user_id', $user->id)
             ->where('course_id', $courseId)
             ->first();
+            
         if ($existingCert) {
             return response()->json([
                 'message' => 'Certificate already issued',
                 'data' => $existingCert
-            ], 200); // 200 OK karena data sudah ada
+            ], 200);
         }
+        
+        // A. Hitung Total Materi + Quiz
+        $totalItems = Material::where('course_id', $courseId)->count() 
+                    + Quiz::where('course_id', $courseId)->count();
 
-        // CEK 2: Syarat Kelulusan (Pilih salah satu logika di bawah)
+        // B. Hitung yang user sudah selesaikan
+        $completedCount = Progress::where('user_id', $user->id)
+                        ->where('course_id', $courseId)
+                        ->where('is_completed', true)
+                        ->count();
 
-        // Opsi A: Cek Progress harus 100% (Complete)
-        $progress = Progress::where('user_id', $user->id)
-            ->where('course_id', $courseId)
-            ->where('status', 'complete')
-            ->first();
+        // C. Hitung Persentase
+        $percentage = $totalItems > 0 ? ($completedCount / $totalItems) * 100 : 0;
 
-        // Opsi B: Atau Cek Nilai Kuis terakhir harus lulus (misal > 70)
-        // $passedQuiz = QuizResult::where('user_id', $user->id)...
-
-        if (!$progress) {
+        // Syarat Lulus: Harus 100%
+        if ($percentage < 100) {
             return response()->json([
-                'message' => 'Cannot claim certificate. Please complete the course first.'
+                'message' => 'Cannot claim certificate. Your progress is only ' . round($percentage) . '%.'
             ], 403);
         }
 
-        // GENERATE SERTIFIKAT
-        // Kita buat kode unik: CERT-{Tahun}-{RandomString}
+        // 3. GENERATE SERTIFIKAT
         $code = 'CERT-' . date('Y') . '-' . strtoupper(Str::random(8));
 
         $certificate = Certificate::create([
             'user_id' => $user->id,
             'course_id' => $courseId,
             'certificate_code' => $code,
-            'certificate_url' => url("/certificates/view/{$code}"), // URL dummy untuk view
+            'certificate_url' => url("/certificates/view/{$code}"),
             'issued_at' => now(),
         ]);
 
@@ -67,10 +70,10 @@ class CertificateController extends Controller
         ], 201);
     }
 
-    // 2. LIHAT SERTIFIKAT SAYA
+    // LIHAT SERTIFIKAT SAYA
     public function index()
     {
-        $certificates = Certificate::with('course:id,title')
+        $certificates = Certificate::with(['course:id,title','user:id,name']) // Pastikan relasi course ada di Model Certificate
             ->where('user_id', Auth::id())
             ->latest()
             ->get();
