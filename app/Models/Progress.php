@@ -9,10 +9,18 @@ class Progress extends Model
 {
     use HasFactory;
 
-    // Kita definisikan nama tabel karena bentuk singularnya bukan 'progres'
     protected $table = 'progress';
 
-    protected $fillable = ['user_id', 'course_id', 'status', 'percentage'];
+    // Update fillable sesuai kolom baru
+    protected $fillable = [
+        'user_id', 
+        'course_id', 
+        'status', 
+        'percentage',
+        'is_completed', // Baru
+        'material_id',  // Baru
+        'quiz_id'       // Baru
+    ];
 
     public function user()
     {
@@ -22,5 +30,17 @@ class Progress extends Model
     public function course()
     {
         return $this->belongsTo(Course::class);
+    }
+
+    // --- TAMBAHKAN RELASI INI (PENTING) ---
+    
+    public function material()
+    {
+        return $this->belongsTo(Material::class);
+    }
+
+    public function quiz()
+    {
+        return $this->belongsTo(Quiz::class);
     }
 }

@@ -3,102 +3,124 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Course\StoreCourseRequest;
+use App\Http\Requests\Course\UpdateCourseRequest;
+use App\Http\Resources\CourseResource;
 use App\Models\Course;
+use App\Services\CourseService;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class CourseController extends Controller
 {
-    // 1. GET ALL COURSES (List semua kursus)
-    public function index()
-    {
-        // Mengambil semua course beserta data instrukturnya (eager loading)
-        $courses = Course::with('instructor:id,name')->latest()->get();
+    use ApiResponse;
 
-        return response()->json([
-            'message' => 'List of courses',
-            'data' => $courses
-        ]);
+    protected CourseService $courseService;
+
+    public function __construct(CourseService $courseService)
+    {
+        $this->courseService = $courseService;
     }
 
-    // 2. CREATE COURSE (Buat kursus baru)
-    public function store(Request $request)
+    /**
+     * Get all courses with pagination.
+     */
+    public function index(): JsonResponse
     {
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-        ]);
+        $courses = Course::with('instructor:id,name')
+            ->withCount(['materials', 'quizzes'])
+            ->latest()
+            ->paginate(15);
 
-        // Magic Eloquent: Otomatis isi user_id dari user yang sedang login
-        $course = $request->user()->courses()->create([
-            'title' => $request->title,
-            'description' => $request->description,
-        ]);
-
-        return response()->json([
-            'message' => 'Course created successfully',
-            'data' => $course
-        ], 201);
+        return $this->paginatedResponse(
+            $courses->through(fn($course) => new CourseResource($course)),
+            'List of courses'
+        );
     }
 
-    // 3. SHOW DETAIL (Lihat 1 kursus spesifik)
-    public function show($id)
+    /**
+     * Create a new course.
+     */
+    public function store(StoreCourseRequest $request): JsonResponse
     {
-        $course = Course::with(['instructor:id,name', 'materials'])->find($id);
+        $course = $this->courseService->createCourse(
+            array_merge($request->validated(), ['user_id' => auth()->id()]),
+            $request->file('cover_image')
+        );
+
+        return $this->successResponse(
+            new CourseResource($course),
+            'Course created successfully',
+            201
+        );
+    }
+
+    /**
+     * Get course details.
+     */
+    public function show(int $id): JsonResponse
+    {
+        $course = Course::with(['instructor:id,name', 'materials', 'quizzes'])
+            ->find($id);
 
         if (!$course) {
-            return response()->json(['message' => 'Course not found'], 404);
+            return $this->errorResponse('Course not found', 404);
         }
 
-        return response()->json([
-            'message' => 'Course detail',
-            'data' => $course
-        ]);
+        return $this->successResponse(
+            new CourseResource($course),
+            'Course details'
+        );
     }
 
-    // 4. UPDATE COURSE (Edit kursus)
-    public function update(Request $request, $id)
+    /**
+     * Update course.
+     */
+    public function update(UpdateCourseRequest $request, Course $course): JsonResponse
     {
-        $course = Course::find($id);
+        $this->authorize('update', $course);
 
-        if (!$course) {
-            return response()->json(['message' => 'Course not found'], 404);
-        }
+        $updatedCourse = $this->courseService->updateCourse(
+            $course,
+            $request->validated(),
+            $request->file('cover_image')
+        );
 
-        // Security Check: Pastikan yang edit adalah pemilik kursus
-        if ($course->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $request->validate([
-            'title' => 'sometimes|string|max:255',
-            'description' => 'sometimes|string',
-        ]);
-
-        $course->update($request->only(['title', 'description']));
-
-        return response()->json([
-            'message' => 'Course updated successfully',
-            'data' => $course
-        ]);
+        return $this->successResponse(
+            new CourseResource($updatedCourse),
+            'Course updated successfully'
+        );
     }
 
-    // 5. DELETE COURSE (Hapus kursus)
-    public function destroy($id)
+    /**
+     * Delete course.
+     */
+    public function destroy(Course $course): JsonResponse
     {
-        $course = Course::find($id);
+        // $this->authorize('delete', $course);
+        Gate::authorize('delete', $course);
+        
 
-        if (!$course) {
-            return response()->json(['message' => 'Course not found'], 404);
+        $this->courseService->deleteCourse($course);
+
+        return $this->successResponse(null, 'Course deleted successfully');
+    }
+
+    /**
+     * Delete only the cover image.
+     */
+    public function deleteCoverImage(Course $course): JsonResponse
+    {
+        $this->authorize('update', $course);
+
+        $deleted = $this->courseService->deleteCoverImage($course);
+
+        if (!$deleted) {
+            return $this->errorResponse('No cover image to delete', 404);
         }
 
-        // Security Check: Pastikan yang hapus adalah pemilik kursus
-        if ($course->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $course->delete();
-
-        return response()->json(['message' => 'Course deleted successfully']);
+        return $this->successResponse(null, 'Cover image deleted successfully');
     }
 }

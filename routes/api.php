@@ -4,44 +4,55 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CourseController;
+use App\Http\Controllers\Api\MaterialController;
+use App\Http\Controllers\Api\QuizController;
+use App\Http\Controllers\Api\QuestionController;
+use App\Http\Controllers\Api\QuizResultController;
+use App\Http\Controllers\Api\CourseProgressController;
+use App\Http\Controllers\Api\CertificateController;
 
-// --- PUBLIC ROUTES (Tidak butuh token) ---
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('throttle:5,1')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+});
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
-    // Auth Actions
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Get User Profile
+    // Endpoint User (Pastikan UserResource ada, atau hapus 'new ...' jika belum ada)
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        return response()->json([
+            'success' => true,
+            'data' => new \App\Http\Resources\UserResource($request->user())
+        ]);
     });
 
-    // Courses CRUD
     Route::apiResource('courses', CourseController::class);
+    Route::delete('/courses/{course}/cover-image', [CourseController::class, 'deleteCoverImage']);
 
-    // Material Routes
-    Route::post('/materials', [App\Http\Controllers\Api\MaterialController::class, 'store']);
-    Route::get('/materials', [App\Http\Controllers\Api\MaterialController::class, 'index']);
-    Route::delete('/materials/{id}', [App\Http\Controllers\Api\MaterialController::class, 'destroy']);
+    Route::get('/materials', [MaterialController::class, 'index']);
+    Route::post('/materials', [MaterialController::class, 'store']);
+    Route::delete('/materials/{material}', [MaterialController::class, 'destroy']);
 
-    // Quiz Routes
-    Route::apiResource('quizzes', \App\Http\Controllers\Api\QuizController::class);
+    Route::apiResource('quizzes', QuizController::class);
 
-    // Question Route (Hanya butuh Store dan Destroy)
-    Route::post('/questions', [\App\Http\Controllers\Api\QuestionController::class, 'store']);
-    Route::delete('/questions/{id}', [\App\Http\Controllers\Api\QuestionController::class, 'destroy']);
+    Route::post('/questions', [QuestionController::class, 'store']);
+    Route::delete('/questions/{id}', [QuestionController::class, 'destroy']);
 
-    // Student Actions
-    Route::post('/submit-quiz', [\App\Http\Controllers\Api\QuizResultController::class, 'store']);
-    Route::get('/my-results', [\App\Http\Controllers\Api\QuizResultController::class, 'index']);
-    // progress
-    Route::post('/update-progress', [\App\Http\Controllers\Api\CourseProgressController::class, 'update']);
-    Route::get('/my-progress', [\App\Http\Controllers\Api\CourseProgressController::class, 'index']);
+    Route::post('/submit-quiz', [QuizResultController::class, 'store']);
+    Route::get('/my-results', [QuizResultController::class, 'index']);
+    
+    // --- PERBAIKAN PROGRESS ---
+    Route::post('/update-progress', [CourseProgressController::class, 'update']);
+    
+    // Route ini untuk data checklist hijau (Granular)
+    Route::get('/my-progress', [CourseProgressController::class, 'myProgress']); 
+    
+    // Route tambahan jika Anda butuh ringkasan per kursus (Summary)
+    Route::get('/progress-summary', [CourseProgressController::class, 'index']);
 
-    // Certificate Routes
-    Route::post('/claim-certificate', [\App\Http\Controllers\Api\CertificateController::class, 'store']);
-    Route::get('/my-certificates', [\App\Http\Controllers\Api\CertificateController::class, 'index']);
+    Route::get('/my-certificates', [CertificateController::class, 'index']);
+    Route::post('/my-certificates/generate', [CertificateController::class, 'generate']);
+
 });
