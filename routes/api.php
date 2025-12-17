@@ -19,8 +19,8 @@ Route::middleware('throttle:5,1')->group(function () {
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::put('/profile/update', [AuthController::class, 'updateProfile']);
 
-    // Endpoint User (Pastikan UserResource ada, atau hapus 'new ...' jika belum ada)
     Route::get('/user', function (Request $request) {
         return response()->json([
             'success' => true,

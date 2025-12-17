@@ -53,9 +53,23 @@ class AuthController extends Controller
         ], 'Login successful');
     }
 
-    /**
-     * Logout user by revoking current token.
-     */
+    public function updateProfile(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $user = $request->user();
+        $user->update([
+            'name' => $request->name
+        ]);
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+        'data' => new UserResource($user)
+    ]);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $this->authService->logout($request->user());
