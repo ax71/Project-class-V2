@@ -20,9 +20,15 @@ class QuizResource extends JsonResource
             'course_id' => $this->course_id,
             'title' => $this->title,
             'description' => $this->description,
-            'questions_count' => $this->whenLoaded('questions', function () {
-                return $this->questions->count();
-            }),
+            
+            // --- PERBAIKAN DISINI ---
+            // Hapus 'whenLoaded'. Ambil langsung angkanya.
+            // Nilai ini otomatis ada karena Anda pakai withCount('questions') di Controller
+            'questions_count' => $this->questions_count ?? 0,
+
+            // Relasi questions lengkap (Opsional, hanya jika diload misal untuk halaman detail/edit)
+            'questions' => $this->whenLoaded('questions'),
+
             'course' => $this->when($this->relationLoaded('course'), function () {
                 return [
                     'id' => $this->course->id,

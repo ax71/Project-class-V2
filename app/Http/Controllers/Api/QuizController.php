@@ -15,7 +15,12 @@ class QuizController extends Controller
     {
         $request->validate(['course_id' => 'required|exists:courses,id']);
 
-        $quizzes = Quiz::where('course_id', $request->course_id)->get();
+        // --- PERBAIKAN DISINI ---
+        // Tambahkan ->withCount('questions')
+        // Ini akan membuat field baru bernama 'questions_count' di JSON response
+        $quizzes = Quiz::where('course_id', $request->course_id)
+            ->withCount('questions') 
+            ->get();
 
         return response()->json(['data' => $quizzes]);
     }
@@ -31,6 +36,8 @@ class QuizController extends Controller
 
         // Cek Kepemilikan Course
         $course = Course::find($request->course_id);
+        
+        // Pastikan user yang login adalah pemilik course
         if ($course->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -43,11 +50,14 @@ class QuizController extends Controller
         ], 201);
     }
 
-    // 3. DETAIL KUIS (PENTING: Load Soal & Jawaban)
+    // 3. DETAIL KUIS (Load Soal & Jawaban)
     public function show($id)
     {
         // Mengambil Quiz + Questions + Answers (Nested Eager Loading)
-        $quiz = Quiz::with('questions.answers')->find($id);
+        // Kita juga tambahkan withCount disini agar detailnya lengkap
+        $quiz = Quiz::with('questions.answers')
+            ->withCount('questions')
+            ->find($id);
 
         if (!$quiz) {
             return response()->json(['message' => 'Quiz not found'], 404);
@@ -65,7 +75,8 @@ class QuizController extends Controller
         }
 
         // Cek permission via Course -> User
-        if ($quiz->course->user_id !== Auth::id()) {
+        // Menggunakan optional() atau relasi untuk keamanan jika course terhapus
+        if ($quiz->course && $quiz->course->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

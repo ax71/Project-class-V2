@@ -45,6 +45,8 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     
     // --- PERBAIKAN PROGRESS ---
     Route::post('/update-progress', [CourseProgressController::class, 'update']);
+    Route::get('/progress/activity-chart', [CourseProgressController::class, 'getActivityChart']);
+    Route::get('/admin/global-activity-chart', [CourseProgressController::class, 'getGlobalActivityChart']);
     
     // Route ini untuk data checklist hijau (Granular)
     Route::get('/my-progress', [CourseProgressController::class, 'myProgress']); 

@@ -29,10 +29,12 @@ class CourseController extends Controller
      */
     public function index(): JsonResponse
     {
-        $courses = Course::with('instructor:id,name')
+        $courses = Course::with(['instructor:id,name', 'materials', 'quizzes'])
             ->withCount(['materials', 'quizzes'])
             ->latest()
-            ->paginate(15);
+            ->paginate(15); 
+            // Catatan: paginate(15) berarti dashboard hanya menghitung data dari 15 kursus terakhir. 
+            // Jika ingin total akurat semua kursus, sebaiknya gunakan endpoint analytics yang kita buat sebelumnya.
 
         return $this->paginatedResponse(
             $courses->through(fn($course) => new CourseResource($course)),

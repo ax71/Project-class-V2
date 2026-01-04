@@ -25,12 +25,20 @@ class CourseResource extends JsonResource
                 'id' => $this->instructor->id,
                 'name' => $this->instructor->name,
             ],
-            'materials_count' => $this->whenLoaded('materials', function () {
-                return $this->materials->count();
-            }),
-            'quizzes_count' => $this->whenLoaded('quizzes', function () {
-                return $this->quizzes->count();
-            }),
+            // 'materials_count' => $this->whenLoaded('materials', function () {
+            //     return $this->materials->count();
+            // }),
+            // 'quizzes_count' => $this->whenLoaded('quizzes', function () {
+            //     return $this->quizzes->count();
+            // }),
+
+            'materials_count' => $this->materials_count ?? 0, 
+            'quizzes_count' => $this->quizzes_count ?? 0,
+
+            'materials' => $this->whenLoaded('materials'),
+            'quizzes' => $this->whenLoaded('quizzes'),
+
+
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];
